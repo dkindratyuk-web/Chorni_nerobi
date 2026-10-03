@@ -1,5 +1,5 @@
 'use strict';
-const VER = '4.1', VK = 'pwenc1', SK = 'pwset1', OLD = 'pwvault1', ITER = 310000;
+const VER = '4.2', VK = 'pwenc1', SK = 'pwset1', OLD = 'pwvault1', ITER = 310000;
 const S = { items: [], theme: 'light', vib: true, lock: 5, hue: 250 };
 let KEY = null, META = null, legacy = [], saveQ = Promise.resolve(), tries = 0, until = 0, lt, hid = 0;
 const TYPES = { wifi: 'Wi-Fi мережі', admin: 'Адмінки' };
@@ -79,6 +79,10 @@ function renderLock() {
   $('#go').onclick = go; app.querySelectorAll('input').forEach(i => i.onkeydown = e => { if (e.key === 'Enter') go(); });
   if ($('#wipe')) $('#wipe').onclick = () => { if (confirm('Стерти всі збережені дані? Це неможливо скасувати.')) { localStorage.removeItem(VK); localStorage.removeItem(OLD); legacy = []; render(); } };
 }
+let dip = null;
+const standalone = () => (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
+const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+const instBlock = () => standalone() ? '' : `<div class="hint">${dip ? 'Додаток можна встановити на пристрій.' : isIOS ? 'Safari: «Поділитися» → «На початковий екран».' : 'Chrome поки не дозволив встановлення. Спробуйте меню ⋮ → «Встановити додаток».'}</div>${dip ? '<button class="rp btn" id="inst">Встановити додаток</button>' : ''}`;
 function applyTheme() {
   const h = S.hue, d = S.theme === 'dark', r = document.documentElement, h2 = (h + 60) % 360, v = d ? {
     '--tx': '#fff', '--tv': 'rgba(235,235,245,.62)', '--glass': 'rgba(60,60,72,.4)', '--glassb': 'rgba(255,255,255,.16)', '--glassd': 'rgba(34,34,44,.7)',
@@ -241,7 +245,7 @@ function openSettings() {
   <div class="f"><label>Колір акценту</label><div class="dots">${[250, 150, 290, 25, 350, 185].map(h => `<button class="dot" data-h="${h}" style="background:hsl(${h} 60% 45%)" aria-label="Колір"></button>`).join('')}</div></div>
   <div class="set"><span>Вібровідгук</span><button class="sw ${S.vib ? 'on' : ''}" id="vb" aria-label="Вібро"></button></div>
   <div class="f"><label>Автоблокування, хв</label><div class="seg">${[1, 5, 15].map(m => `<button data-lk="${m}">${m}</button>`).join('')}</div></div>
-  <h2 style="margin-top:14px">Імпорт з Excel</h2>
+  ${instBlock()}<h2 style="margin-top:14px">Імпорт з Excel</h2>
   <div class="hint">Перший рядок — заголовки. Колонки:<table><tr><th>Тип</th><th>Назва</th><th>Логін</th><th>Пароль</th><th>Примітка</th></tr><tr><td>wifi</td><td>Office-5G</td><td></td><td>MyWifiPass123</td><td>Офіс</td></tr><tr><td>admin</td><td>MikroTik hAP</td><td>admin</td><td>RouterPass!</td><td>192.168.88.1</td></tr></table>
   <b>Тип</b>: <code>wifi</code> або <code>admin</code> (порожній = wifi). <b>Назва</b> і <b>Пароль</b> обов'язкові; для Wi-Fi логін можна лишити порожнім. Формати: .xlsx, .xls, .csv. Беруться дані з першого аркуша, однакові записи пропускаються.</div>
   <input type="file" id="fi" accept=".xlsx,.xls,.csv" hidden>
@@ -251,6 +255,7 @@ function openSettings() {
   document.querySelectorAll('[data-th]').forEach(b => b.onclick = () => { S.theme = b.dataset.th; applyTheme(); save(); th(); vib(10); });
   $('#vb').onclick = e => { S.vib = !S.vib; e.target.classList.toggle('on', S.vib); save(); vib(30); };
   $('#imp').onclick = () => $('#fi').click(); $('#fi').onchange = e => { if (e.target.files[0]) { closeSheet(); doImport(e.target.files[0]); } };
+  if ($('#inst')) $('#inst').onclick = async () => { const e = dip; dip = null; e.prompt(); try { await e.userChoice; } catch (_) { } closeSheet(); };
   $('#tpl').onclick = template; $('#exp').onclick = exportEnc; $('#rst').onclick = () => { closeSheet(); setTimeout(openRestore, 50); }; $('#cpw').onclick = () => { closeSheet(); setTimeout(openChangePw, 50); }; $('#lk').onclick = () => { closeSheet(); setTimeout(lock, 50); };
   const dt = () => document.querySelectorAll('[data-h]').forEach(b => b.classList.toggle('on', +b.dataset.h === S.hue)); dt();
   document.querySelectorAll('[data-h]').forEach(b => b.onclick = () => { S.hue = +b.dataset.h; applyTheme(); save(); dt(); vib(10); });
@@ -283,6 +288,8 @@ function openChangePw() {
 function go(t) { view = t; q = ''; history.pushState({ v: t }, ''); render(); }
 
 if (typeof document !== 'undefined' && document.getElementById('app')) {
+  window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); dip = e; });
+  window.addEventListener('appinstalled', () => { dip = null; toast('Додаток встановлено ✓'); });
   load(); applyTheme(); history.replaceState({ v: null }, '');
   addEventListener('popstate', () => { closeSheet(true); view = (history.state && history.state.v) || null; render(); });
   ['pointerdown', 'keydown', 'scroll'].forEach(e => addEventListener(e, touch, { passive: true, capture: true }));
